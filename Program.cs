@@ -12,30 +12,38 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = "GoogleOpenID";
+    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 }
 )
     .AddCookie(options =>
     {
         options.LoginPath = "/login";
         options.AccessDeniedPath = "/denied";
-        //options.Events = new CookieAuthenticationEvents()
-        //{
-        //    OnSigningIn = async context =>
-        //    {
-        //        var principal = context.Principal;
-        //        if (principal.HasClaim(c => c.Type == ClaimTypes.NameIdentifier))
-        //        {
-        //            if (principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value == "samet")
-        //            {
-        //                var claimsIdentity = principal.Identity as ClaimsIdentity;
-        //                claimsIdentity.AddClaim(new Claim(ClaimTypes.Role, "admin"));
-        //            }
-        //        }
-        //        await Task.CompletedTask;
-        //    }
-        //};
-    }).AddOpenIdConnect("GoogleOpenID", options =>
+        options.Events = new CookieAuthenticationEvents()
+        {
+
+            OnSignedIn = async context =>
+            {
+                var scheme = context.Properties.Items.Where(k => k.Key == ".AuthScheme").FirstOrDefault();
+                var claim = new Claim(scheme.Key,scheme.Value);
+                var claimsIdentity = context.Principal.Identity as ClaimsIdentity; // We did cast, I dont know why?
+                claimsIdentity.AddClaim(claim);
+            }
+            //OnSigningIn = async context =>
+            //{
+            //    var principal = context.Principal;
+            //    if (principal.HasClaim(c => c.Type == ClaimTypes.NameIdentifier))
+            //    {
+            //        if (principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value == "samet")
+            //        {
+            //            var claimsIdentity = principal.Identity as ClaimsIdentity;
+            //            claimsIdentity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+            //        }
+            //    }
+            //    await Task.CompletedTask;
+            //}
+        };
+    }).AddOpenIdConnect("google", options =>
 
     {
         options.Authority = "https://accounts.google.com";
@@ -53,10 +61,21 @@ builder.Services.AddAuthentication(options =>
                     var claimsIdentity = context.Principal.Identity as ClaimsIdentity; // We did cast, I dont know why?
                     claimsIdentity.AddClaim(claim);
                 }
-                    
+
             }
         };
 
+    }).AddOpenIdConnect("okta", options =>
+    {
+        options.Authority = "https://dev-32012226.okta.com/oauth2/default";
+        options.ClientId = builder.Configuration["Authentication:Okta:ClientId"];
+        options.ClientSecret = builder.Configuration["Authentication:Okta:ClientSecret"];
+        options.CallbackPath = "/okta-auth";
+        options.ResponseType = "code";
+        options.SaveTokens = true;
+        options.SignedOutCallbackPath = "/okta-signout";
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
     });
     
     //.AddGoogle(options =>

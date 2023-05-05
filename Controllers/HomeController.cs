@@ -32,7 +32,6 @@ namespace Authn.Controllers
         {
             return View();
         }
-
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Secured()
         {
@@ -46,6 +45,20 @@ namespace Authn.Controllers
         {
             ViewData["ReturnUrl"] = returnUrl;
             return View();
+        }
+
+
+        [HttpGet("login/{provider}")]
+        public IActionResult LoginExternal([FromRoute]string provider,[FromQuery]string returnUrl)
+        {
+            if (User != null && User.Identities.Any(identity => identity.IsAuthenticated)) 
+            {
+                RedirectToAction("", "Home");
+            }
+
+            returnUrl = string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl;
+            var authenticationProperties = new AuthenticationProperties { RedirectUri = returnUrl };
+            return new ChallengeResult(provider, authenticationProperties);
         }
 
         [HttpPost("login")]
@@ -63,13 +76,16 @@ namespace Authn.Controllers
 
                 var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 var claimsPrincipal = new ClaimsPrincipal(claimsIdentity);
-                await HttpContext.SignInAsync(claimsPrincipal);
+                var items = new Dictionary<string, string>();
+                items.Add(".AuthScheme", CookieAuthenticationDefaults.AuthenticationScheme);
+                var properties = new AuthenticationProperties(items);
+                await HttpContext.SignInAsync(claimsPrincipal,properties);
                 return Redirect(returnUrl);
             }
             TempData["Error"] = "Error. Username or password is invalid";
             return View("login");
         }
-
+        [Authorize]
         public async Task<IActionResult> Logout()
         {
             await HttpContext.SignOutAsync();
