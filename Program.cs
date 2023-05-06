@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Formatters;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Authn.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AuthnDbContext>(options =>
@@ -11,6 +12,7 @@ builder.Services.AddDbContext<AuthnDbContext>(options =>
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<UserService>();
 
 // This code is so important dont forget it. It is a middleware for identify to roles
 builder.Services.AddAuthentication(options =>
@@ -31,6 +33,20 @@ builder.Services.AddAuthentication(options =>
                 var scheme = context.Properties.Items.Where(k => k.Key == ".AuthScheme").FirstOrDefault();
                 var claim = new Claim(scheme.Key,scheme.Value);
                 var claimsIdentity = context.Principal.Identity as ClaimsIdentity; // We did cast, I dont know why?
+                var userService = context.HttpContext.RequestServices.GetRequiredService(typeof(UserService)) as UserService;
+                var nameIdentifier = claimsIdentity?.Claims.FirstOrDefault(m => m.Type == ClaimTypes.NameIdentifier)?.Value;
+                if(userService != null & nameIdentifier != null)
+                {
+                    var appUser = userService.GetUserExternalProvider(scheme.Value, nameIdentifier);
+                    if (appUser == null)
+                    {
+                        appUser = userService.AddNewUser(scheme.Value, claimsIdentity.Claims.ToList());
+                    }
+                    foreach(var r in appUser.RoleList)
+                    {
+                        claimsIdentity.AddClaim(new Claim(ClaimTypes.Role, r));
+                    }
+                }
                 claimsIdentity.AddClaim(claim);
             }
             //OnSigningIn = async context =>
@@ -55,19 +71,7 @@ builder.Services.AddAuthentication(options =>
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
         options.CallbackPath = builder.Configuration["Authentication:Google:CallbackPath"];
         options.SaveTokens = true; //Not neccesary everytime. Especially for microservices
-        options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents()
-        {
-            OnTokenValidated = async context =>
-            {
-                if (context.Principal.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier).Value == "104989183017641520332") // This is my uniqe value for my email
-                {
-                    var claim = new Claim(ClaimTypes.Role, "Admin");
-                    var claimsIdentity = context.Principal.Identity as ClaimsIdentity; // We did cast, I dont know why?
-                    claimsIdentity.AddClaim(claim);
-                }
-
-            }
-        };
+      
 
     }).AddOpenIdConnect("okta", options =>
     {
@@ -76,7 +80,7 @@ builder.Services.AddAuthentication(options =>
         options.ClientSecret = builder.Configuration["Authentication:Okta:ClientSecret"];
         options.CallbackPath = builder.Configuration["Authentication:Okta:CallbackPath"];
         options.ResponseType = builder.Configuration["Authentication:Okta:ResponseType"]; 
-        options.SaveTokens = true;
+        options.SaveTokens = false;
         options.SignedOutCallbackPath = builder.Configuration["Authentication:Okta:SignedOutCallbackPath"];
         options.Scope.Add("openid");
         options.Scope.Add("profile");
