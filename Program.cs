@@ -2,8 +2,12 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Mvc.Formatters;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDbContext<AuthnDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AuthnDbContext") ?? throw new InvalidOperationException("Connection string 'AuthnDbContext' not found.")));
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -46,10 +50,10 @@ builder.Services.AddAuthentication(options =>
     }).AddOpenIdConnect("google", options =>
 
     {
-        options.Authority = "https://accounts.google.com";
+        options.Authority = builder.Configuration["Authentication:Google:Authority"];
         options.ClientId = builder.Configuration["Authentication:Google:ClientId"];
         options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
-        options.CallbackPath = "/auth";
+        options.CallbackPath = builder.Configuration["Authentication:Google:CallbackPath"];
         options.SaveTokens = true; //Not neccesary everytime. Especially for microservices
         options.Events = new Microsoft.AspNetCore.Authentication.OpenIdConnect.OpenIdConnectEvents()
         {
@@ -67,13 +71,13 @@ builder.Services.AddAuthentication(options =>
 
     }).AddOpenIdConnect("okta", options =>
     {
-        options.Authority = "https://dev-32012226.okta.com/oauth2/default";
+        options.Authority = builder.Configuration["Authentication:Okta:Authority"];
         options.ClientId = builder.Configuration["Authentication:Okta:ClientId"];
         options.ClientSecret = builder.Configuration["Authentication:Okta:ClientSecret"];
-        options.CallbackPath = "/okta-auth";
-        options.ResponseType = "code";
+        options.CallbackPath = builder.Configuration["Authentication:Okta:CallbackPath"];
+        options.ResponseType = builder.Configuration["Authentication:Okta:ResponseType"]; 
         options.SaveTokens = true;
-        options.SignedOutCallbackPath = "/okta-signout";
+        options.SignedOutCallbackPath = builder.Configuration["Authentication:Okta:SignedOutCallbackPath"];
         options.Scope.Add("openid");
         options.Scope.Add("profile");
     });
