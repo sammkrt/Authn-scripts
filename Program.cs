@@ -28,7 +28,7 @@ builder.Services.AddAuthentication(options =>
         options.Events = new CookieAuthenticationEvents()
         {
 
-            OnSignedIn = async context =>
+            OnSigningIn = async context =>
             {
                 var scheme = context.Properties.Items.Where(k => k.Key == ".AuthScheme").FirstOrDefault();
                 var claim = new Claim(scheme.Key,scheme.Value);
